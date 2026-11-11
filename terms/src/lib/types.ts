@@ -37,6 +37,8 @@ export type AgreementPayload = {
   milestones: string;
 };
 
+export type AccessRole = "client" | "freelancer";
+
 export type AgreementRecord = {
   id: string;
   payload: AgreementPayload;

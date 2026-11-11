@@ -1,4 +1,5 @@
 import { signAgreement } from "@/lib/db";
+import { assertSameOriginJson, readJsonBody } from "@/lib/http";
 import { parseSignature } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
@@ -8,17 +9,16 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const blocked = assertSameOriginJson(request);
+  if (blocked) return blocked;
+
   const { id } = await params;
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "Send JSON." }, { status: 400 });
-  }
+  const body = await readJsonBody(request);
+  if (!body.ok) return body.response;
 
   let parsed: ReturnType<typeof parseSignature>;
   try {
-    parsed = parseSignature(body);
+    parsed = parseSignature(body.value);
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Could not read the signature." },
@@ -26,7 +26,7 @@ export async function POST(
     );
   }
 
-  const result = await signAgreement(id, parsed.party, parsed.name, parsed.dataUrl);
+  const result = await signAgreement(id, parsed.name, parsed.dataUrl);
   if (result === "missing") return Response.json({ error: "Not found." }, { status: 404 });
   if (result === "already") {
     return Response.json({ error: "That side already signed." }, { status: 409 });

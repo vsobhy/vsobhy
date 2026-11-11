@@ -21,7 +21,7 @@ export function Builder() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [shareUrl, setShareUrl] = useState("");
-  const [createdId, setCreatedId] = useState("");
+  const [freelancerToken, setFreelancerToken] = useState("");
   const [sentSigned, setSentSigned] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -59,14 +59,14 @@ export function Builder() {
   function patch(partial: Partial<AgreementPayload>) {
     setData((prev) => ({ ...prev, ...partial }));
     setShareUrl("");
-    setCreatedId("");
+    setFreelancerToken("");
     setSentSigned(false);
   }
 
   function choosePreset(preset: Preset) {
     setData((prev) => applyPreset(prev, preset));
     setShareUrl("");
-    setCreatedId("");
+    setFreelancerToken("");
     setSentSigned(false);
   }
 
@@ -88,11 +88,16 @@ export function Builder() {
             signature && signName.trim() ? { name: signName.trim(), dataUrl: signature } : undefined,
         }),
       });
-      const json = (await res.json()) as { id?: string; error?: string };
-      if (!res.ok || !json.id) throw new Error(json.error || "Could not create the link.");
-      const url = `${window.location.origin}/a/${json.id}`;
-      setShareUrl(url);
-      setCreatedId(json.id);
+      const json = (await res.json()) as {
+        clientToken?: string;
+        freelancerToken?: string;
+        error?: string;
+      };
+      if (!res.ok || !json.clientToken || !json.freelancerToken) {
+        throw new Error(json.error || "Could not create the link.");
+      }
+      setShareUrl(`${window.location.origin}/a/${json.clientToken}`);
+      setFreelancerToken(json.freelancerToken);
       setSentSigned(Boolean(signature && signName.trim()));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the link.");
@@ -108,14 +113,14 @@ export function Builder() {
   }
 
   async function attachSignature() {
-    if (!createdId || !signature || !signName.trim()) return;
+    if (!freelancerToken || !signature || !signName.trim()) return;
     setError("");
     setBusy(true);
     try {
-      const res = await fetch(`/api/agreements/${createdId}/sign`, {
+      const res = await fetch(`/api/agreements/${freelancerToken}/sign`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ party: "freelancer", name: signName.trim(), dataUrl: signature }),
+        body: JSON.stringify({ name: signName.trim(), dataUrl: signature }),
       });
       const json = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(json.error || "Could not attach your signature.");

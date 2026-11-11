@@ -90,20 +90,14 @@ export function assertSendable(data: AgreementPayload): string | null {
   return null;
 }
 
-export function parseSignature(body: unknown): {
-  party: "freelancer" | "client";
-  name: string;
-  dataUrl: string;
-} {
+export function parseSignature(body: unknown): { name: string; dataUrl: string } {
   const raw = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  const party = raw.party === "freelancer" || raw.party === "client" ? raw.party : null;
   const name = str(raw.name, 120);
   const dataUrl = typeof raw.dataUrl === "string" ? raw.dataUrl : "";
-  if (!party) throw new Error("Say who is signing.");
   if (!name) throw new Error("Type the signer's name.");
   if (!dataUrl.startsWith("data:image/png;base64,") && !dataUrl.startsWith("data:image/jpeg;base64,")) {
     throw new Error("Draw a signature.");
   }
   if (dataUrl.length > 350_000) throw new Error("Signature is too large. Draw it again.");
-  return { party, name, dataUrl };
+  return { name, dataUrl };
 }

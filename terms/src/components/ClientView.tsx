@@ -3,29 +3,43 @@
 import Link from "next/link";
 import { useState } from "react";
 import { formatStamp } from "@/lib/format";
-import type { AgreementRecord } from "@/lib/types";
+import type { AccessRole, AgreementRecord } from "@/lib/types";
 import { BrandMark } from "./BrandMark";
 import { ContractPreview } from "./ContractPreview";
 import { SignaturePad } from "./SignaturePad";
 
-export function ClientView({ initial }: { initial: AgreementRecord }) {
+export function ClientView({
+  initial,
+  role,
+  accessToken,
+}: {
+  initial: AgreementRecord;
+  role: AccessRole;
+  accessToken: string;
+}) {
   const [record, setRecord] = useState(initial);
-  const [name, setName] = useState(initial.payload.client.name);
+  const [name, setName] = useState(
+    role === "client" ? initial.payload.client.name : initial.payload.freelancer.name,
+  );
   const [signature, setSignature] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const bothSigned = Boolean(record.freelancerSignedAt && record.clientSignedAt);
   const firstName = record.payload.freelancer.name.split(" ")[0] || "freelancer";
+  const alreadySigned = role === "client" ? Boolean(record.clientSignedAt) : Boolean(record.freelancerSignedAt);
+  const signerLabel = role === "client" ? record.payload.client.name || "the client" : record.payload.freelancer.name;
+  const waitingOn =
+    role === "client" ? firstName : record.payload.client.name.split(" ")[0] || "the client";
 
   async function sign() {
     setError("");
     setBusy(true);
     try {
-      const res = await fetch(`/api/agreements/${record.id}/sign`, {
+      const res = await fetch(`/api/agreements/${accessToken}/sign`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ party: "client", name, dataUrl: signature }),
+        body: JSON.stringify({ name, dataUrl: signature }),
       });
       const json = (await res.json()) as { agreement?: AgreementRecord; error?: string };
       if (!res.ok || !json.agreement) throw new Error(json.error || "Could not save the signature.");
@@ -48,8 +62,8 @@ export function ClientView({ initial }: { initial: AgreementRecord }) {
           <div className="presets">
             {bothSigned ? (
               <span className="status">Signed by both sides</span>
-            ) : record.clientSignedAt ? (
-              <span className="status">You signed · waiting on {firstName}</span>
+            ) : alreadySigned ? (
+              <span className="status">You signed · waiting on {waitingOn}</span>
             ) : (
               <span className="status wait">Needs your signature</span>
             )}
@@ -61,17 +75,24 @@ export function ClientView({ initial }: { initial: AgreementRecord }) {
       </header>
 
       <main className="wrap" style={{ maxWidth: 920 }}>
-        <p className="kicker">Agreement for {record.payload.client.name || "you"}</p>
+        <p className="kicker">
+          Agreement for {record.payload.client.name || "you"}
+        </p>
         <h1>Read it. Sign it. Done.</h1>
         <p className="lede">
-          {record.payload.freelancer.name} sent this Freelance Services Agreement. Read it, then
-          sign at the bottom if you agree. You can print a copy after.
+          {role === "client"
+            ? `${record.payload.freelancer.name} sent this Freelance Services Agreement. Read it, then sign at the bottom if you agree. You can print a copy after.`
+            : "This is your signing link for this Freelance Services Agreement. The client link cannot sign your side."}
         </p>
         {bothSigned ? (
           <p className="ok" style={{ marginBottom: 18 }}>
             Fully signed
-            {record.clientSignedAt ? ` · you on ${formatStamp(record.clientSignedAt)}` : ""}.
-            Print a copy for your records.
+            {alreadySigned && role === "client" && record.clientSignedAt
+              ? ` · you on ${formatStamp(record.clientSignedAt)}`
+              : alreadySigned && record.freelancerSignedAt
+                ? ` · you on ${formatStamp(record.freelancerSignedAt)}`
+                : ""}
+            . Print a copy for your records.
           </p>
         ) : null}
 
@@ -99,11 +120,11 @@ export function ClientView({ initial }: { initial: AgreementRecord }) {
           />
         </div>
 
-        {record.clientSignedAt ? null : (
+        {alreadySigned ? null : (
           <section className="sign-card">
-            <p className="kicker">Client signature</p>
+            <p className="kicker">{role === "client" ? "Client signature" : "Your signature"}</p>
             <h2 className="display" style={{ fontSize: 28, margin: "8px 0 12px" }}>
-              Sign as {record.payload.client.name || "the client"}
+              Sign as {signerLabel}
             </h2>
             <label className="field">
               <span className="label">Typed name</span>
